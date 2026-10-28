@@ -1,0 +1,14 @@
+{
+  "name": "bookbound",
+  "private": true,
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "test": "node scripts/run.mjs test",
+    "typecheck": "node scripts/run.mjs typecheck",
+    "db:migrate": "node scripts/migrate.mjs"
+  }
+}

@@ -1,0 +1,22 @@
+name: bookbound
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: bookbound
+      POSTGRES_PASSWORD: bookbound
+      POSTGRES_DB: bookbound
+    ports:
+      - "5432:5432"
+    volumes:
+      - bookbound-pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bookbound -d bookbound"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  bookbound-pg:

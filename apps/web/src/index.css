@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: "Fraunces", "Iowan Old Style", Palatino, serif;
+  --font-sans: "DM Sans", "Avenir Next", "Segoe UI", sans-serif;
+  --color-ink: #0c1424;
+  --color-raised: #121b2e;
+  --color-card: #17233a;
+  --color-cream: #f6efe2;
+  --color-muted: #d5cbe2;
+  --color-amber: #e2a85a;
+  --color-amber-deep: #c48b3c;
+  --color-line: #e2a85a59;
+}
+
+html {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-sans);
+  color: var(--color-cream);
+  background:
+    radial-gradient(900px 420px at 8% -10%, rgba(226, 168, 90, 0.18), transparent 60%),
+    radial-gradient(700px 380px at 100% 0%, rgba(140, 168, 204, 0.12), transparent 55%),
+    var(--color-ink);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: #e2a85a;
+  color: #1c1408;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, #17233a 0%, #243352 45%, #17233a 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+  border-radius: 16px;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+  }
+}
