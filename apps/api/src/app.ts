@@ -13,6 +13,7 @@ import {
 } from './import/service'
 import type { ReviewAction } from './import/match'
 import { getUser } from './session'
+import { readMap } from './atlas/service'
 import { judgeTags, librarySummary, listLibrary, loadReviewSeed, retryTagging, reviewSet, setRating } from './review/service'
 
 export function createApp(state: { db: Database | null }) {
@@ -139,6 +140,11 @@ export function createApp(state: { db: Database | null }) {
   app.post('/api/review/seed', async (c) => {
     await getUser(c, db())
     return c.json(await loadReviewSeed(db()))
+  })
+
+  app.get('/api/map', async (c) => {
+    const user = await getUser(c, db())
+    return c.json(await readMap(db(), user.id))
   })
 
   app.get('/api/review/tags', async (c) => {

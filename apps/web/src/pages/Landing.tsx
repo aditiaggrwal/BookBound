@@ -46,7 +46,7 @@ export function LandingPage() {
           className="block w-full"
         />
         <figcaption className="px-4 py-3 font-serif text-sm italic text-muted">
-          An example atlas. Yours is drawn from the books you have actually read. The map itself comes after the tags are trustworthy.
+          An example atlas. Yours is drawn from the books you have actually read, using tags Gemini writes from each description.
         </figcaption>
       </figure>
     </div>

@@ -1,4 +1,6 @@
 export { authorListed, authorsMatch, catalogTitle, cleanIsbn, normalizeAuthor, normalizeTitle, titlesMatch, tokenOverlap } from './text'
+export { buildLands, landBridges } from './map'
+export type { LandBridge, MapBookInput, MapLand, MapMember, MapTag } from './map'
 export {
   coerceCandidate,
   coerceParsedBook,

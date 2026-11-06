@@ -4,6 +4,7 @@ import { FavoritesPage } from './pages/Favorites'
 import { ImportPage } from './pages/Import'
 import { LandingPage } from './pages/Landing'
 import { LibraryPage } from './pages/Library'
+import { MapPage } from './pages/Map'
 import { ReviewPage } from './pages/Review'
 import { TagReviewPage } from './pages/TagReview'
 
@@ -16,6 +17,7 @@ export function App() {
           <Route path="/import" element={<ImportPage />} />
           <Route path="/import/review" element={<ReviewPage />} />
           <Route path="/import/favorites" element={<FavoritesPage />} />
+          <Route path="/map" element={<MapPage />} />
           <Route path="/library" element={<LibraryPage />} />
           <Route path="/review/tags" element={<TagReviewPage />} />
           <Route path="*" element={<LandingPage />} />

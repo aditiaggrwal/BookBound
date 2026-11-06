@@ -7,7 +7,7 @@ export function Shell() {
       <a href="#content" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-10 focus:rounded-full focus:bg-amber focus:px-4 focus:py-2 focus:text-ink">
         Skip to content
       </a>
-      <header className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-5">
+      <header className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-5 py-5">
         <Link to="/" className="flex items-center gap-3 text-cream no-underline">
           <Compass />
           <span>
@@ -15,12 +15,12 @@ export function Shell() {
             <span className="mt-1 block font-serif text-sm italic text-muted">Every book leads somewhere.</span>
           </span>
         </Link>
-        <nav className="flex items-center gap-5 text-sm">
+        <nav className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+          <NavLink to="/map" className="text-muted no-underline hover:text-cream">
+            Map
+          </NavLink>
           <NavLink to="/library" className="text-muted no-underline hover:text-cream">
             Library
-          </NavLink>
-          <NavLink to="/review/tags" className="text-muted no-underline hover:text-cream">
-            Tag review
           </NavLink>
         </nav>
       </header>

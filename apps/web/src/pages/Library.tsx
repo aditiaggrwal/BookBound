@@ -85,7 +85,7 @@ export function LibraryPage() {
   return (
     <div>
       <h1 className="font-serif text-4xl">Your library</h1>
-      <p className="mt-3 max-w-2xl text-muted">The map comes after tags are trustworthy. This list is your library so far.</p>
+      <p className="mt-3 max-w-2xl text-muted">Gemini reads each description and writes the tags. This list is your library so far.</p>
       {books && books.length > 0 && ratedCount < 15 ? (
         <p className="mt-4 font-serif text-lg italic text-amber">Early library: it grows as you read.</p>
       ) : null}
