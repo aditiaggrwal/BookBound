@@ -10,9 +10,12 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       ...init?.headers,
     },
   })
-  const body = (await response.json().catch(() => ({}))) as { message?: string }
+  const body = (await response.json().catch(() => ({}))) as { message?: string; error?: string }
   if (!response.ok) {
-    throw new ApiError(body.message ?? 'Something went wrong. Try again.')
+    const message =
+      body.message ??
+      (body.error === 'sign_in_required' ? 'Sign in again, then retry the import.' : 'Something went wrong. Try again.')
+    throw new ApiError(message)
   }
   return body as T
 }
