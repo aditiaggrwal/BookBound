@@ -17,13 +17,13 @@ if (process.env.COOKIE_SECURE === undefined && process.env.NODE_ENV === 'product
 }
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
-const webDist = join(root, 'apps/web/dist')
+const webDist = join(root, 'public')
 const state: { db: Database | null } = { db: null }
 const api = createApp(state)
 const app = new Hono()
 
 app.route('/', api)
-app.use('/*', serveStatic({ root: './apps/web/dist' }))
+app.use('/*', serveStatic({ root: './public' }))
 
 app.get('*', async (c) => {
   if (c.req.path.startsWith('/api/')) return c.json({ message: 'Not found.' }, 404)
@@ -34,6 +34,7 @@ app.get('*', async (c) => {
     return c.text('BookBound UI is not built yet. Run the web build first.', 503)
   }
 })
+
 
 const port = Number(process.env.PORT ?? process.env.API_PORT ?? 8787)
 const abort = new AbortController()

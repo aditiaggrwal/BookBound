@@ -8,9 +8,24 @@ importers:
 
   .:
     dependencies:
+      '@bookbound/db':
+        specifier: workspace:*
+        version: link:packages/db
+      '@bookbound/shared':
+        specifier: workspace:*
+        version: link:packages/shared
+      '@bookbound/worker':
+        specifier: workspace:*
+        version: link:apps/worker
       '@electric-sql/pglite':
         specifier: ^0.3.15
         version: 0.3.16
+      drizzle-orm:
+        specifier: ^0.45.4
+        version: 0.45.4(@electric-sql/pglite@0.3.16)(@types/pg@8.23.1)(pg@8.23.1)(postgres@3.4.9)
+      hono:
+        specifier: ^4.13.13
+        version: 4.13.13
       pg:
         specifier: ^8.20.0
         version: 8.23.1
@@ -18,9 +33,15 @@ importers:
         specifier: ^4.23.15
         version: 4.23.15
     devDependencies:
+      '@types/node':
+        specifier: ^26.6.5
+        version: 26.6.5
       '@types/pg':
         specifier: ^8.18.0
         version: 8.23.1
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
 
   apps/api:
     dependencies:

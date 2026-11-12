@@ -14,11 +14,18 @@
     "db:migrate": "node scripts/migrate-app.mjs"
   },
   "dependencies": {
+    "@bookbound/db": "workspace:*",
+    "@bookbound/shared": "workspace:*",
+    "@bookbound/worker": "workspace:*",
     "@electric-sql/pglite": "^0.3.15",
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.13",
     "pg": "^8.20.0",
     "tsx": "^4.23.15"
   },
   "devDependencies": {
-    "@types/pg": "^8.18.0"
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.18.0",
+    "typescript": "^7.0.2"
   }
 }
