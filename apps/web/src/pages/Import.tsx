@@ -50,10 +50,12 @@ export function ImportPage() {
         review: useReview ? book.review : null,
         sourceIndex,
       }))
+      setLabel('Starting import…')
       const batch = await api<{ batchId: string }>('/api/import/batches', {
         method: 'POST',
         body: JSON.stringify({ totalRows: rows.length, useReviewText: useReview }),
       })
+      if (!batch.batchId) throw new ApiError('BookBound could not start the import. Refresh and try again.')
       batchId = batch.batchId
       const controller = new AbortController()
       abort.current = controller
@@ -62,6 +64,7 @@ export function ImportPage() {
       let unmatchedCount = 0
       for (let index = 0; index < rows.length; index += 200) {
         if (controller.signal.aborted) break
+        setLabel(`Matching ${Math.min(index + 200, rows.length)} of ${rows.length}`)
         const slice = rows.slice(index, index + 200)
         const response = await api<{ results: ImportRowResult[] }>(`/api/import/batches/${batchId}/rows`, {
           method: 'POST',

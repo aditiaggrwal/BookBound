@@ -2,10 +2,8 @@ import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { createDb, migrateRuntime, type Database } from '@bookbound/db'
 import { createApp } from './apps/api/src/app'
-import { processEnrichmentBatch } from './apps/worker/src/loop'
 
 // Cookie Secure defaults are decided per-request in session.ts.
-
 
 const state: { db: Database | null } = { db: null }
 let connecting: Promise<void> | null = null
@@ -55,10 +53,13 @@ app.use('/api/*', async (c, next) => {
 
   await next()
 
-  if (state.db) {
-    void processEnrichmentBatch(state.db, 1).catch((error) => {
-      console.error(error)
-    })
+  if (state.db && c.req.path !== '/api/health') {
+    // Keep the worker out of the cold-start module graph.
+    void import('./apps/worker/src/loop')
+      .then(({ processEnrichmentBatch }) => processEnrichmentBatch(state.db!, 1))
+      .catch((error) => {
+        console.error(error)
+      })
   }
 })
 

@@ -1,15 +1,11 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { PGlite } from '@electric-sql/pglite'
-import { drizzle as drizzlePglite } from 'drizzle-orm/pglite'
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
 import { schema } from './schema.js'
 
-export type Database =
-  | ReturnType<typeof drizzlePostgres<typeof schema>>
-  | ReturnType<typeof drizzlePglite<typeof schema>>
+export type Database = ReturnType<typeof drizzlePostgres<typeof schema>>
 
 export type DbHandle = {
   db: Database
@@ -19,10 +15,21 @@ export type DbHandle = {
 
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 
+function postgresOptions(url: string) {
+  const local = /localhost|127\.0\.0\.1/.test(url)
+  return {
+    max: 5,
+    idle_timeout: 20,
+    connect_timeout: 15,
+    // Hosted Postgres (Cursor Apps / Neon-style) expects TLS.
+    ssl: local ? false : ('require' as const),
+  }
+}
+
 export async function createDb(databaseUrl = process.env.DATABASE_URL): Promise<DbHandle> {
   const url = databaseUrl?.trim() ?? ''
   if (url !== '') {
-    const client = postgres(url, { max: 5, idle_timeout: 20 })
+    const client = postgres(url, postgresOptions(url))
     const db = drizzlePostgres(client, { schema })
     return {
       db,
@@ -33,8 +40,11 @@ export async function createDb(databaseUrl = process.env.DATABASE_URL): Promise<
     }
   }
 
-  const pglite = await startLocal()
-  const db = drizzlePglite(pglite, { schema })
+  // Load PGlite only for local/dev so the hosted function stays lean.
+  const { PGlite } = await import('@electric-sql/pglite')
+  const { drizzle: drizzlePglite } = await import('drizzle-orm/pglite')
+  const pglite = await startLocal(PGlite)
+  const db = drizzlePglite(pglite, { schema }) as unknown as Database
   return {
     db,
     kind: 'pglite',
@@ -44,7 +54,7 @@ export async function createDb(databaseUrl = process.env.DATABASE_URL): Promise<
   }
 }
 
-async function startLocal(): Promise<PGlite> {
+async function startLocal(PGlite: typeof import('@electric-sql/pglite').PGlite) {
   const db = new PGlite()
   const migrationsDir = join(rootDir, 'migrations')
   const files = (await readdir(migrationsDir).catch(() => []))
