@@ -32,6 +32,13 @@ async function ensureDb(): Promise<void> {
 
 const app = new Hono()
 
+app.notFound((c) => {
+  if (c.req.path.startsWith('/api/')) {
+    return c.json({ message: 'That API route was not found.' }, 404)
+  }
+  return c.text('Not found', 404)
+})
+
 app.use('/api/*', async (c, next) => {
   if (c.req.path === '/api/health') {
     try {
