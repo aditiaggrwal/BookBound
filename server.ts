@@ -4,9 +4,8 @@ import { createDb, migrateRuntime, type Database } from '@bookbound/db'
 import { createApp } from './apps/api/src/app'
 import { processEnrichmentBatch } from './apps/worker/src/loop'
 
-if (process.env.COOKIE_SECURE === undefined && (process.env.VERCEL || process.env.NODE_ENV === 'production')) {
-  process.env.COOKIE_SECURE = 'true'
-}
+// Cookie Secure defaults are decided per-request in session.ts.
+
 
 const state: { db: Database | null } = { db: null }
 let connecting: Promise<void> | null = null

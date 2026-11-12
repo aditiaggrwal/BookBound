@@ -92,7 +92,17 @@ async function gatherCandidates(db: Database, row: ParsedBook, openLibrary: { do
   }
 }
 
-export async function upsertBook(db: Database, candidate: BookCandidate): Promise<string> {
+export type UpsertBookOptions = {
+  /** When true, fill empty shared catalog fields from this candidate (server/catalog only). */
+  trustMetadata?: boolean
+}
+
+export async function upsertBook(
+  db: Database,
+  candidate: BookCandidate,
+  options: UpsertBookOptions = {},
+): Promise<string> {
+  const trustMetadata = options.trustMetadata === true
   const matches: BookRow[] = []
   if (candidate.bookId) {
     matches.push(...(await db.select().from(books).where(eq(books.id, candidate.bookId)).limit(1)))
@@ -109,6 +119,8 @@ export async function upsertBook(db: Database, candidate: BookCandidate): Promis
   }
   const existing = matches[0]
   if (existing) {
+    // Client-supplied candidates must not rewrite shared catalog rows used by everyone.
+    if (!trustMetadata) return existing.id
     await db
       .update(books)
       .set({
@@ -125,21 +137,24 @@ export async function upsertBook(db: Database, candidate: BookCandidate): Promis
     return existing.id
   }
   const id = crypto.randomUUID()
+  const description = trustMetadata ? candidate.description : null
+  const coverUrl = trustMetadata ? candidate.coverUrl : null
+  const subjects = trustMetadata ? candidate.subjects : []
   try {
     await db.insert(books).values({
       id,
-      title: candidate.title,
-      authors: candidate.authors.length > 0 ? candidate.authors : ['Unknown'],
+      title: candidate.title.slice(0, 500),
+      authors: (candidate.authors.length > 0 ? candidate.authors : ['Unknown']).map((name) => name.slice(0, 200)).slice(0, 20),
       isbn13: candidate.isbn13,
       isbn10: candidate.isbn10,
       year: candidate.year,
-      description: candidate.description,
-      subjects: candidate.subjects,
-      coverUrl: candidate.coverUrl,
-      language: candidate.language,
+      description: description ? description.slice(0, 8000) : null,
+      subjects: subjects.slice(0, 40).map((subject) => subject.slice(0, 120)),
+      coverUrl,
+      language: trustMetadata ? candidate.language : null,
       thin: false,
-      metadataSource: candidate.source,
-      openLibraryKey: candidate.openLibraryKey,
+      metadataSource: trustMetadata ? candidate.source : 'user',
+      openLibraryKey: trustMetadata ? candidate.openLibraryKey : null,
     })
     return id
   } catch (error) {
@@ -290,7 +305,7 @@ export async function importRowsForBatch(db: Database, userId: string, batchId: 
     let bookId: string | null = null
     let action: 'added' | 'changed' | 'unchanged' | null = null
     if (decision.status === 'auto' && decision.candidate) {
-      bookId = await upsertBook(db, decision.candidate)
+      bookId = await upsertBook(db, decision.candidate, { trustMetadata: true })
       action = await linkUserBook(db, userId, bookId, stored, 'import')
       await enqueueEnrichment(db, bookId)
     }
@@ -380,11 +395,13 @@ export async function resolveImportRow(db: Database, userId: string, rowId: stri
   }
   const candidate = action === 'choose' ? coerceCandidate(chosen) : record.candidate
   if (!candidate) throw new HttpError('Choose a book before accepting this row.', 400)
-  const bookId = await upsertBook(db, candidate)
+  // Accept uses the server-matched candidate; choose comes from the client and must not rewrite shared catalog fields.
+  const bookId = await upsertBook(db, candidate, { trustMetadata: action !== 'choose' })
   const stored = batch.useReviewText ? record.original : { ...record.original, review: null }
   const link = await linkUserBook(db, userId, bookId, stored, 'import')
   await enqueueEnrichment(db, bookId)
   await db.update(importRows).set({ status: next, bookId, candidate }).where(eq(importRows.id, rowId))
+
   if (wasUnmatched) await bump(db, batch.id, 'skipped', -1)
   if (link === 'added') await bump(db, batch.id, 'added', 1)
   if (link === 'changed') await bump(db, batch.id, 'changed', 1)
@@ -417,8 +434,9 @@ export async function addFavorite(
 ) {
   const candidate = coerceCandidate(candidateInput)
   if (!candidate) throw new HttpError('Choose a book from the search results.', 400)
-  const bookId = await upsertBook(db, candidate)
+  const bookId = await upsertBook(db, candidate, { trustMetadata: false })
   const action = await linkUserBook(
+
     db,
     userId,
     bookId,

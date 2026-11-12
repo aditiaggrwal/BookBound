@@ -12,9 +12,8 @@ import { createApp } from './app'
 
 loadEnv(import.meta.url)
 
-if (process.env.COOKIE_SECURE === undefined && process.env.NODE_ENV === 'production') {
-  process.env.COOKIE_SECURE = 'true'
-}
+// Cookie Secure defaults are decided per-request in session.ts.
+
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 const webDist = join(root, 'public')

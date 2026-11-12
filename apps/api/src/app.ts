@@ -12,9 +12,20 @@ import {
   searchCatalog,
 } from './import/service'
 import type { ReviewAction } from './import/match'
-import { getUser } from './session'
+import { clientIp, getUser } from './session'
 import { readMap } from './atlas/service'
 import { judgeTags, librarySummary, listLibrary, loadReviewSeed, retryTagging, reviewSet, setRating } from './review/service'
+
+function requireReviewAdmin(c: { req: { header: (name: string) => string | undefined } }) {
+  const expected = process.env.REVIEW_ADMIN_TOKEN?.trim()
+  if (!expected) throw new HttpError('Tag review is not available.', 403)
+  const auth = c.req.header('authorization')?.trim() ?? ''
+  const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : ''
+  const header = c.req.header('x-review-admin')?.trim() ?? ''
+  if (bearer !== expected && header !== expected) {
+    throw new HttpError('Tag review is not available.', 403)
+  }
+}
 
 export function createApp(state: { db: Database | null }) {
   const app = new Hono()
@@ -31,7 +42,6 @@ export function createApp(state: { db: Database | null }) {
     }
     return c.json({ message: 'Something went wrong. Try again.' }, 500)
   })
-
 
   app.use('*', async (c, next) => {
     const length = Number(c.req.header('content-length') ?? 0)
@@ -53,6 +63,8 @@ export function createApp(state: { db: Database | null }) {
   }
 
   app.post('/api/import/batches', async (c) => {
+    const ip = clientIp(c)
+    limit(`import:ip:${ip}`, 20, 60 * 60 * 1000)
     const user = await getUser(c, db())
     limit(`import:${user.id}`, 30, 60 * 60 * 1000)
     const body = await c.req.json().catch(() => null)
@@ -63,6 +75,8 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.post('/api/import/batches/:id/rows', async (c) => {
+    const ip = clientIp(c)
+    limit(`rows:ip:${ip}`, 200, 60 * 60 * 1000)
     const user = await getUser(c, db())
     limit(`rows:${user.id}`, 400, 60 * 60 * 1000)
     const body = await c.req.json().catch(() => null)
@@ -100,6 +114,8 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.get('/api/books/search', async (c) => {
+    const ip = clientIp(c)
+    limit(`search:ip:${ip}`, 40, 60 * 1000)
     const user = await getUser(c, db())
     limit(`search:${user.id}`, 40, 60 * 1000)
     const query = c.req.query('q') ?? ''
@@ -119,7 +135,10 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.post('/api/library/favorites', async (c) => {
+    const ip = clientIp(c)
+    limit(`favorites:ip:${ip}`, 60, 60 * 60 * 1000)
     const user = await getUser(c, db())
+    limit(`favorites:${user.id}`, 60, 60 * 60 * 1000)
     const body = await c.req.json().catch(() => null)
     if (!body || typeof body !== 'object' || !('candidate' in body)) {
       throw new HttpError('Choose a book from the search results.', 400)
@@ -140,13 +159,18 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.post('/api/library/:bookId/retry', async (c) => {
+    const ip = clientIp(c)
+    limit(`retry:ip:${ip}`, 30, 60 * 60 * 1000)
     const user = await getUser(c, db())
+    limit(`retry:${user.id}`, 30, 60 * 60 * 1000)
     await retryTagging(db(), user.id, c.req.param('bookId'))
     return c.json({ ok: true })
   })
 
   app.post('/api/review/seed', async (c) => {
+    requireReviewAdmin(c)
     await getUser(c, db())
+    limit('review:seed', 5, 60 * 60 * 1000)
     return c.json(await loadReviewSeed(db()))
   })
 
@@ -156,11 +180,13 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.get('/api/review/tags', async (c) => {
+    requireReviewAdmin(c)
     await getUser(c, db())
     return c.json(await reviewSet(db()))
   })
 
   app.post('/api/review/tags', async (c) => {
+    requireReviewAdmin(c)
     const user = await getUser(c, db())
     const body = await c.req.json().catch(() => null)
     if (!body || typeof body !== 'object' || typeof body.bookId !== 'string' || typeof body.accurate !== 'boolean') {

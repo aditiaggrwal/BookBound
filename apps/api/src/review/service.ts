@@ -105,21 +105,26 @@ export async function loadReviewSeed(db: Database) {
     const existing = await db.select().from(books).where(eq(books.isbn13, item.isbn13)).limit(1)
     let bookId = existing[0]?.id
     if (!bookId) {
-      bookId = await upsertBook(db, {
-        bookId: null,
-        title: item.title,
-        authors: [item.author],
-        isbn13: item.isbn13,
-        isbn10: null,
-        isbns: [item.isbn13],
-        coverUrl: null,
-        year: null,
-        subjects: [],
-        openLibraryKey: null,
-        description: null,
-        language: null,
-        source: 'seed',
-      })
+      bookId = await upsertBook(
+        db,
+        {
+          bookId: null,
+          title: item.title,
+          authors: [item.author],
+          isbn13: item.isbn13,
+          isbn10: null,
+          isbns: [item.isbn13],
+          coverUrl: null,
+          year: null,
+          subjects: [],
+          openLibraryKey: null,
+          description: null,
+          language: null,
+          source: 'seed',
+        },
+        { trustMetadata: true },
+      )
+
       created += 1
     }
     const before = await db
