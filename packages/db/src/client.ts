@@ -21,8 +21,8 @@ function postgresOptions(url: string) {
     max: 5,
     idle_timeout: 20,
     connect_timeout: 15,
-    // Hosted Postgres (Cursor Apps / Neon-style) expects TLS.
-    ssl: local ? false : ('require' as const),
+    // Verify the server certificate on hosted Postgres.
+    ssl: local ? false : ({ rejectUnauthorized: true } as const),
   }
 }
 

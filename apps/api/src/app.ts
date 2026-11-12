@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import type { Database } from '@bookbound/db'
 import { HttpError, limit } from './http'
 import {
@@ -43,11 +44,13 @@ export function createApp(state: { db: Database | null }) {
     return c.json({ message: 'Something went wrong. Try again.' }, 500)
   })
 
-  app.use('*', async (c, next) => {
-    const length = Number(c.req.header('content-length') ?? 0)
-    if (length > 2_000_000) return c.json({ message: 'That upload is too large. Send a smaller batch.' }, 413)
-    await next()
-  })
+  app.use(
+    '*',
+    bodyLimit({
+      maxSize: 2_000_000,
+      onError: (c) => c.json({ message: 'That upload is too large. Send a smaller batch.' }, 413),
+    }),
+  )
 
   app.get('/api/health', (c) => c.json({ ok: state.db !== null }))
 
@@ -76,9 +79,10 @@ export function createApp(state: { db: Database | null }) {
 
   app.post('/api/import/batches/:id/rows', async (c) => {
     const ip = clientIp(c)
-    limit(`rows:ip:${ip}`, 200, 60 * 60 * 1000)
+    limit(`rows:ip:${ip}`, 120, 60 * 60 * 1000)
+    limit('enrichment:global', 80, 60 * 60 * 1000)
     const user = await getUser(c, db())
-    limit(`rows:${user.id}`, 400, 60 * 60 * 1000)
+    limit(`rows:${user.id}`, 200, 60 * 60 * 1000)
     const body = await c.req.json().catch(() => null)
     const rows = body && typeof body === 'object' && 'rows' in body && Array.isArray(body.rows) ? body.rows : null
     if (!rows) throw new HttpError('Send the books as a list.', 400)
@@ -102,6 +106,9 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.post('/api/import/rows/:id/:action', async (c) => {
+    const ip = clientIp(c)
+    limit(`resolve:ip:${ip}`, 120, 60 * 60 * 1000)
+    limit('enrichment:global', 80, 60 * 60 * 1000)
     const user = await getUser(c, db())
     const action = c.req.param('action')
     if (action !== 'accept' && action !== 'skip' && action !== 'choose') {
@@ -136,9 +143,10 @@ export function createApp(state: { db: Database | null }) {
 
   app.post('/api/library/favorites', async (c) => {
     const ip = clientIp(c)
-    limit(`favorites:ip:${ip}`, 60, 60 * 60 * 1000)
+    limit(`favorites:ip:${ip}`, 30, 60 * 60 * 1000)
+    limit('enrichment:global', 80, 60 * 60 * 1000)
     const user = await getUser(c, db())
-    limit(`favorites:${user.id}`, 60, 60 * 60 * 1000)
+    limit(`favorites:${user.id}`, 30, 60 * 60 * 1000)
     const body = await c.req.json().catch(() => null)
     if (!body || typeof body !== 'object' || !('candidate' in body)) {
       throw new HttpError('Choose a book from the search results.', 400)
@@ -160,9 +168,10 @@ export function createApp(state: { db: Database | null }) {
 
   app.post('/api/library/:bookId/retry', async (c) => {
     const ip = clientIp(c)
-    limit(`retry:ip:${ip}`, 30, 60 * 60 * 1000)
+    limit(`retry:ip:${ip}`, 10, 60 * 60 * 1000)
+    limit('enrichment:global', 80, 60 * 60 * 1000)
     const user = await getUser(c, db())
-    limit(`retry:${user.id}`, 30, 60 * 60 * 1000)
+    limit(`retry:${user.id}`, 10, 60 * 60 * 1000)
     await retryTagging(db(), user.id, c.req.param('bookId'))
     return c.json({ ok: true })
   })

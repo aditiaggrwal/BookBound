@@ -7,7 +7,7 @@ function postgresOptions(url: string) {
     max: 1,
     idle_timeout: 5,
     connect_timeout: 15,
-    ssl: local ? false : ('require' as const),
+    ssl: local ? false : ({ rejectUnauthorized: true } as const),
   }
 }
 

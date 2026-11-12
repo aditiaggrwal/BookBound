@@ -136,10 +136,11 @@ export async function upsertBook(
       .where(eq(books.id, existing.id))
     return existing.id
   }
+  // Untrusted clients may only attach to books that already exist.
+  if (!trustMetadata) {
+    throw new HttpError('Choose a book from the search results.', 400)
+  }
   const id = crypto.randomUUID()
-  const description = trustMetadata ? candidate.description : null
-  const coverUrl = trustMetadata ? candidate.coverUrl : null
-  const subjects = trustMetadata ? candidate.subjects : []
   try {
     await db.insert(books).values({
       id,
@@ -148,13 +149,13 @@ export async function upsertBook(
       isbn13: candidate.isbn13,
       isbn10: candidate.isbn10,
       year: candidate.year,
-      description: description ? description.slice(0, 8000) : null,
-      subjects: subjects.slice(0, 40).map((subject) => subject.slice(0, 120)),
-      coverUrl,
-      language: trustMetadata ? candidate.language : null,
+      description: candidate.description ? candidate.description.slice(0, 8000) : null,
+      subjects: candidate.subjects.slice(0, 40).map((subject) => subject.slice(0, 120)),
+      coverUrl: candidate.coverUrl,
+      language: candidate.language,
       thin: false,
-      metadataSource: trustMetadata ? candidate.source : 'user',
-      openLibraryKey: trustMetadata ? candidate.openLibraryKey : null,
+      metadataSource: candidate.source,
+      openLibraryKey: candidate.openLibraryKey,
     })
     return id
   } catch (error) {
@@ -165,6 +166,40 @@ export async function upsertBook(
     }
     throw error
   }
+}
+
+/** Resolve a client-picked candidate without trusting its metadata for new catalog rows. */
+export async function resolveClientBook(db: Database, candidate: BookCandidate): Promise<string> {
+  const matches: BookRow[] = []
+  if (candidate.bookId) {
+    matches.push(...(await db.select().from(books).where(eq(books.id, candidate.bookId)).limit(1)))
+  }
+  if (matches.length === 0 && candidate.isbn13) {
+    matches.push(...(await db.select().from(books).where(eq(books.isbn13, candidate.isbn13)).limit(1)))
+  }
+  if (matches.length === 0 && candidate.openLibraryKey) {
+    matches.push(...(await db.select().from(books).where(eq(books.openLibraryKey, candidate.openLibraryKey)).limit(1)))
+  }
+  if (matches[0]) return matches[0].id
+
+  let remote: BookCandidate[] = []
+  try {
+    if (candidate.isbn13) remote = await searchOpenLibrary({ isbn: candidate.isbn13, limit: 3 })
+    if (remote.length === 0 && candidate.isbn10) remote = await searchOpenLibrary({ isbn: candidate.isbn10, limit: 3 })
+    if (remote.length === 0 && candidate.openLibraryKey) {
+      const key = candidate.openLibraryKey.replace(/^\//, '')
+      remote = await searchOpenLibrary({ q: key, limit: 5 })
+      remote = remote.filter((item) => {
+        const itemKey = item.openLibraryKey?.replace(/^\//, '')
+        return itemKey === key || item.openLibraryKey === candidate.openLibraryKey
+      })
+    }
+  } catch {
+    remote = []
+  }
+  const trusted = remote[0]
+  if (!trusted) throw new HttpError('Choose a book from the search results.', 400)
+  return upsertBook(db, trusted, { trustMetadata: true })
 }
 
 export async function linkUserBook(
@@ -395,8 +430,11 @@ export async function resolveImportRow(db: Database, userId: string, rowId: stri
   }
   const candidate = action === 'choose' ? coerceCandidate(chosen) : record.candidate
   if (!candidate) throw new HttpError('Choose a book before accepting this row.', 400)
-  // Accept uses the server-matched candidate; choose comes from the client and must not rewrite shared catalog fields.
-  const bookId = await upsertBook(db, candidate, { trustMetadata: action !== 'choose' })
+  // Accept uses the server-matched candidate; choose is re-verified against the catalog.
+  const bookId =
+    action === 'choose'
+      ? await resolveClientBook(db, candidate)
+      : await upsertBook(db, candidate, { trustMetadata: true })
   const stored = batch.useReviewText ? record.original : { ...record.original, review: null }
   const link = await linkUserBook(db, userId, bookId, stored, 'import')
   await enqueueEnrichment(db, bookId)
@@ -434,7 +472,7 @@ export async function addFavorite(
 ) {
   const candidate = coerceCandidate(candidateInput)
   if (!candidate) throw new HttpError('Choose a book from the search results.', 400)
-  const bookId = await upsertBook(db, candidate, { trustMetadata: false })
+  const bookId = await resolveClientBook(db, candidate)
   const action = await linkUserBook(
 
     db,

@@ -8,9 +8,30 @@ import { HttpError, limit } from './http'
 
 const COOKIE = 'bb_session'
 
+function isIp(value: string): boolean {
+  // Basic IPv4 / IPv6 shape check; enough to reject empty garbage.
+  return /^(?:\d{1,3}\.){3}\d{1,3}$|^[0-9a-f:]+$/i.test(value)
+}
+
+/**
+ * Prefer platform-provided client IPs. Never trust the first X-Forwarded-For
+ * hop — that value is client-controlled. The last hop is added by the proxy.
+ */
 export function clientIp(c: Context): string {
-  const forwarded = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
-  return forwarded || c.req.header('x-real-ip')?.trim() || 'unknown'
+  const vercel = c.req.header('x-vercel-forwarded-for')?.split(',').pop()?.trim()
+  if (vercel && isIp(vercel)) return vercel
+  const real = c.req.header('x-real-ip')?.trim()
+  if (real && isIp(real)) return real
+  const cf = c.req.header('cf-connecting-ip')?.trim()
+  if (cf && isIp(cf)) return cf
+  const forwarded = c.req
+    .header('x-forwarded-for')
+    ?.split(',')
+    .map((part) => part.trim())
+    .filter(Boolean)
+  const last = forwarded?.at(-1)
+  if (last && isIp(last)) return last
+  return 'unknown'
 }
 
 function hashToken(token: string): string {
@@ -30,18 +51,11 @@ export async function getUser(c: Context, db: Database) {
     const existing = await db.select().from(users).where(eq(users.sessionToken, hashed)).limit(1)
     const user = existing[0]
     if (user && !user.dataDeletedAt) return user
-    // Migrate legacy plaintext tokens once, then store only the hash.
-    const legacy = await db.select().from(users).where(eq(users.sessionToken, token)).limit(1)
-    const legacyUser = legacy[0]
-    if (legacyUser && !legacyUser.dataDeletedAt) {
-      await db.update(users).set({ sessionToken: hashed }).where(eq(users.id, legacyUser.id))
-      return { ...legacyUser, sessionToken: hashed }
-    }
   }
 
   const ip = clientIp(c)
-  limit(`session:ip:${ip}`, 20, 60 * 60 * 1000)
-  limit('session:global', 200, 60 * 60 * 1000)
+  limit(`session:ip:${ip}`, 5, 60 * 60 * 1000)
+  limit('session:global', 50, 60 * 60 * 1000)
 
   const sessionToken = `${crypto.randomUUID()}${crypto.randomUUID()}`.replace(/-/g, '')
   const id = crypto.randomUUID()
