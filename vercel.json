@@ -5,7 +5,8 @@
   "outputDirectory": "public",
   "functions": {
     "api/**/*.ts": {
-      "includeFiles": "migrations/**"
+      "includeFiles": "{migrations/**,packages/db/sql/**}",
+      "maxDuration": 60
     }
   },
   "rewrites": [
@@ -15,3 +16,4 @@
     }
   ]
 }
+

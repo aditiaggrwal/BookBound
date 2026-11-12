@@ -14,8 +14,13 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     const message =
       body.message ??
-      (body.error === 'sign_in_required' ? 'Sign in again, then retry the import.' : 'Something went wrong. Try again.')
+      (body.error === 'sign_in_required'
+        ? 'Sign in again, then retry the import.'
+        : response.status === 503
+          ? 'BookBound is still starting. Wait a moment and try again.'
+          : 'Something went wrong. Try again.')
     throw new ApiError(message)
   }
   return body as T
 }
+

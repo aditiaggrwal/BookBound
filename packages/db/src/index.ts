@@ -1,4 +1,6 @@
 export { createDb } from './client'
 export type { Database, DbHandle } from './client'
+export { INIT_SQL } from './initSql'
+export { migrateRuntime } from './migrateRuntime'
 export { enqueueEnrichment } from './queue'
 export * from './schema'

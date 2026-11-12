@@ -22,8 +22,16 @@ export function createApp(state: { db: Database | null }) {
   app.onError((error, c) => {
     if (error instanceof HttpError) return c.json({ message: error.message }, error.status as 400)
     console.error(error)
+    const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : ''
+    if (code === '42P01') {
+      return c.json({ message: 'BookBound is preparing its database. Wait a moment and try again.' }, 503)
+    }
+    if (code === '57P01' || code === '57P03' || code === '08006' || code === '08001') {
+      return c.json({ message: 'BookBound could not reach its database. Try again in a moment.' }, 503)
+    }
     return c.json({ message: 'Something went wrong. Try again.' }, 500)
   })
+
 
   app.use('*', async (c, next) => {
     const length = Number(c.req.header('content-length') ?? 0)
