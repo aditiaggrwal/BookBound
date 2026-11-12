@@ -1,5 +1,3 @@
-CREATE EXTENSION IF NOT EXISTS vector;
-
 CREATE TABLE IF NOT EXISTS users (
   id text PRIMARY KEY,
   email text,
@@ -47,7 +45,7 @@ CREATE TABLE IF NOT EXISTS book_embeddings (
   id text PRIMARY KEY,
   book_id text NOT NULL REFERENCES books (id),
   axis text NOT NULL,
-  embedding vector(256) NOT NULL,
+  embedding jsonb NOT NULL,
   model text NOT NULL
 );
 

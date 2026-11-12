@@ -191,7 +191,7 @@ function edgeToward(fromId: string, toId: string): { x: number; y: number } | nu
   return { x: from.x + dx * scale, y: from.y + dy * scale }
 }
 
-function center(id: string): { x: number; y: number } | null {
+function center(id: string): { x: number; y: number } {
   const place = placeFor(id)
   return {
     x: place.left + place.width / 2,

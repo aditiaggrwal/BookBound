@@ -1,20 +1,6 @@
 import { sql } from 'drizzle-orm'
-import { boolean, customType, integer, jsonb, pgTable, real, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, integer, jsonb, pgTable, real, text, timestamp } from 'drizzle-orm/pg-core'
 import type { BookCandidate, ParsedBook } from '@bookbound/shared'
-
-const vector256 = customType<{ data: number[]; driverData: string }>({
-  dataType() {
-    return 'vector(256)'
-  },
-  toDriver(value: number[]) {
-    return JSON.stringify(value)
-  },
-  fromDriver(value: string) {
-    const body = value.trim().replace(/^\[/, '').replace(/\]$/, '')
-    if (!body) return []
-    return body.split(',').map((part) => Number(part))
-  },
-})
 
 export const users = pgTable('users', {
   id: text('id').primaryKey(),
@@ -58,7 +44,7 @@ export const bookEmbeddings = pgTable('book_embeddings', {
   id: text('id').primaryKey(),
   bookId: text('book_id').notNull(),
   axis: text('axis').notNull(),
-  embedding: vector256('embedding').notNull(),
+  embedding: jsonb('embedding').$type<number[]>().notNull(),
   model: text('model').notNull(),
 })
 
