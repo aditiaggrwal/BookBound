@@ -90,10 +90,20 @@ export async function retryTagging(db: Database, userId: string, bookId: string)
     .where(and(eq(userBooks.userId, userId), eq(userBooks.bookId, bookId)))
     .limit(1)
   if (!owned[0]) throw new HttpError('That book is not in your library.', 404)
-  await db
-    .update(enrichmentJobs)
-    .set({ status: 'failed', finishedAt: new Date(), error: 'Superseded by a retry.' })
-    .where(and(eq(enrichmentJobs.bookId, bookId), inArray(enrichmentJobs.status, ['pending', 'running', 'failed', 'done'])))
+
+  const jobs = await db.select().from(enrichmentJobs).where(eq(enrichmentJobs.bookId, bookId))
+  // Shared catalog tagging is paid. Never re-queue a book that already finished,
+  // and never reset a successful job so another visitor can force model spend.
+  if (jobs.some((job) => job.status === 'pending' || job.status === 'running')) {
+    throw new HttpError('That book is already being tagged.', 409)
+  }
+  if (jobs.some((job) => job.status === 'done')) {
+    throw new HttpError('That book is already tagged.', 400)
+  }
+  if (!jobs.some((job) => job.status === 'failed')) {
+    throw new HttpError('Tagging has not failed for that book.', 400)
+  }
+
   await enqueueEnrichment(db, bookId)
 }
 

@@ -72,13 +72,7 @@ const withDb: MiddlewareHandler = async (c, next) => {
     await ensureDb()
   } catch (error) {
     console.error(`Database unavailable. ${sanitizeError(error)}`)
-    return c.json(
-      {
-        message: 'BookBound could not open its database. Try again in a moment.',
-        detail: sanitizeError(error),
-      },
-      503,
-    )
+    return c.json({ message: 'BookBound could not open its database. Try again in a moment.' }, 503)
   }
 
   await next()

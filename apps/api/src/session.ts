@@ -14,16 +14,14 @@ function isIp(value: string): boolean {
 }
 
 /**
- * Prefer platform-provided client IPs. Never trust the first X-Forwarded-For
- * hop — that value is client-controlled. The last hop is added by the proxy.
+ * Prefer platform-provided client IPs only.
+ * Never trust x-real-ip / cf-connecting-ip — visitors can set those.
+ * Never trust the first X-Forwarded-For hop — that value is client-controlled.
+ * The last X-Forwarded-For hop is appended by the proxy.
  */
 export function clientIp(c: Context): string {
   const vercel = c.req.header('x-vercel-forwarded-for')?.split(',').pop()?.trim()
   if (vercel && isIp(vercel)) return vercel
-  const real = c.req.header('x-real-ip')?.trim()
-  if (real && isIp(real)) return real
-  const cf = c.req.header('cf-connecting-ip')?.trim()
-  if (cf && isIp(cf)) return cf
   const forwarded = c.req
     .header('x-forwarded-for')
     ?.split(',')

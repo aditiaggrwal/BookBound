@@ -99,14 +99,7 @@ async function handler(request: Request): Promise<Response> {
     return await app.fetch(restored)
   } catch (error) {
     console.error('API handler crash', error)
-    return Response.json(
-      {
-        message: 'Something went wrong. Try again.',
-        detail: loadError ?? sanitize(error),
-        path,
-      },
-      { status: 500 },
-    )
+    return Response.json({ message: 'Something went wrong. Try again.' }, { status: 500 })
   }
 }
 

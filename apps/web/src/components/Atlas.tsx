@@ -108,7 +108,7 @@ function Island({
         className={`group relative block w-full ${selected ? 'z-20' : 'z-10'}`}
       >
         <img
-          src={`/atlas/${id}.png`}
+          src={`/atlas/${id}.jpg`}
           alt=""
           className={`aspect-square w-full object-contain drop-shadow-[0_16px_16px_rgba(0,0,0,0.55)] transition duration-200 ${
             selected ? 'scale-105' : 'group-hover:scale-[1.03]'
@@ -132,7 +132,7 @@ function FogLand({ id, active }: { id: string; active: boolean }) {
   return (
     <li className="pointer-events-none absolute z-10" style={{ top: `${place.top}%`, left: `${place.left}%`, width: `${place.width}%` }}>
       <img
-        src="/atlas/fog.png"
+        src="/atlas/fog.jpg"
         alt=""
         className={`aspect-square w-full object-contain drop-shadow-[0_16px_16px_rgba(0,0,0,0.55)] ${active ? '' : 'opacity-80'}`}
       />
