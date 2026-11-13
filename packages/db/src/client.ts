@@ -1,12 +1,12 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js'
-import postgres from 'postgres'
-import { postgresOptions } from './pgOptions.js'
+import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres'
+import pg from 'pg'
+import { poolOptions } from './pgOptions.js'
 import { schema } from './schema.js'
 
-export type Database = ReturnType<typeof drizzlePostgres<typeof schema>>
+export type Database = ReturnType<typeof drizzlePg<typeof schema>>
 
 export type DbHandle = {
   db: Database
@@ -19,13 +19,14 @@ const rootDir = join(dirname(fileURLToPath(import.meta.url)), '../../..')
 export async function createDb(databaseUrl = process.env.DATABASE_URL): Promise<DbHandle> {
   const url = databaseUrl?.trim() ?? ''
   if (url !== '') {
-    const client = postgres(url, postgresOptions(url))
-    const db = drizzlePostgres(client, { schema })
+    // Cursor Apps / hosted Postgres: use node-postgres, matching the platform skill.
+    const pool = new pg.Pool(poolOptions(url))
+    const db = drizzlePg(pool, { schema })
     return {
       db,
       kind: 'postgres',
       close: async () => {
-        await client.end({ timeout: 1 })
+        await pool.end()
       },
     }
   }

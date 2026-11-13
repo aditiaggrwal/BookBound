@@ -12,17 +12,17 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   })
   const text = await response.text()
   const trimmed = text.trim()
-  let body: { message?: string; error?: string } = {}
+  let body: { message?: string; error?: string; detail?: string } = {}
   const looksJson = trimmed.startsWith('{') || trimmed.startsWith('[')
   if (looksJson) {
     try {
-      body = JSON.parse(trimmed) as { message?: string; error?: string }
+      body = JSON.parse(trimmed) as { message?: string; error?: string; detail?: string }
     } catch {
       body = {}
     }
   }
   if (!response.ok) {
-    const message =
+    const base =
       body.message ??
       (body.error === 'sign_in_required'
         ? 'Sign in again, then retry the import.'
@@ -31,6 +31,8 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
           : response.status === 429
             ? 'Too many requests. Wait a moment and try again.'
             : `Something went wrong (${response.status}). Try again.`)
+    const message =
+      body.detail && !base.includes(body.detail) ? `${base} (${body.detail})` : base
     throw new ApiError(message)
   }
   if (!looksJson) {

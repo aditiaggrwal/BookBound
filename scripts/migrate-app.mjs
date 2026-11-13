@@ -20,9 +20,10 @@ const local = /localhost|127\.0\.0\.1/.test(connectionString)
 
 // The session lock needs a direct connection: DATABASE_URL may go through a
 // transaction pooler, which would keep the lock after this script exits.
+// TLS follows the connection string; local Docker stays plaintext.
 const client = new pg.Client({
   connectionString,
-  ssl: local ? false : { rejectUnauthorized: true },
+  ...(local ? { ssl: false } : {}),
 })
 await client.connect()
 try {

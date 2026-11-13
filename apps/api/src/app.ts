@@ -54,7 +54,17 @@ export function createApp(state: { db: Database | null }) {
     ) {
       return c.json({ message: 'BookBound could not reach its database. Try again in a moment.' }, 503)
     }
-    return c.json({ message: 'Something went wrong. Try again.' }, 500)
+    const safe = detail
+      .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[db-url]')
+      .replace(/password=[^\s&]+/gi, 'password=[redacted]')
+      .slice(0, 180)
+    return c.json(
+      {
+        message: safe ? `Something went wrong. ${safe}` : 'Something went wrong. Try again.',
+        detail: safe || undefined,
+      },
+      500,
+    )
   })
 
   app.use(

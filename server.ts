@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
+import type { MiddlewareHandler } from 'hono'
 import { createDb, migrateRuntime, type Database } from '@bookbound/db'
 import { createApp } from './apps/api/src/app'
 
@@ -11,6 +12,14 @@ const state: { db: Database | null; kind: 'postgres' | 'pglite' | null; lastErro
   lastError: null,
 }
 let connecting: Promise<void> | null = null
+
+function sanitizeError(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error)
+  return raw
+    .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[db-url]')
+    .replace(/password=[^\s&]+/gi, 'password=[redacted]')
+    .slice(0, 180)
+}
 
 async function ensureDb(): Promise<void> {
   if (state.db) return
@@ -28,7 +37,7 @@ async function ensureDb(): Promise<void> {
       .catch((error) => {
         state.db = null
         state.kind = null
-        state.lastError = error instanceof Error ? error.message.slice(0, 180) : 'unknown error'
+        state.lastError = sanitizeError(error)
         throw error
       })
       .finally(() => {
@@ -41,48 +50,49 @@ async function ensureDb(): Promise<void> {
 const app = new Hono()
 
 app.notFound((c) => {
-  if (c.req.path.startsWith('/api/')) {
-    return c.json({ message: 'That API route was not found.' }, 404)
+  if (c.req.path.startsWith('/api/') || c.req.path === '/api') {
+    return c.json({ message: 'That API route was not found.', path: c.req.path }, 404)
   }
   return c.text('Not found', 404)
 })
 
-app.use('/api/*', async (c, next) => {
+const withDb: MiddlewareHandler = async (c, next) => {
   if (c.req.path === '/api/health') {
     try {
       await ensureDb()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'unknown error'
-      console.error(`Database unavailable. ${message}`)
+      console.error(`Database unavailable. ${sanitizeError(error)}`)
     }
-    return next()
+    await next()
+    return
   }
 
   try {
     await ensureDb()
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'unknown error'
-    console.error(`Database unavailable. ${message}`)
-    return c.json({ message: 'BookBound could not open its database. Try again in a moment.' }, 503)
+    console.error(`Database unavailable. ${sanitizeError(error)}`)
+    return c.json(
+      {
+        message: 'BookBound could not open its database. Try again in a moment.',
+        detail: sanitizeError(error),
+      },
+      503,
+    )
   }
 
   await next()
+}
 
-  if (state.db && c.req.path !== '/api/health') {
-    // Keep the worker out of the cold-start module graph.
-    void import('./apps/worker/src/loop')
-      .then(({ processEnrichmentBatch }) => processEnrichmentBatch(state.db!, 1))
-      .catch((error) => {
-        console.error(error)
-      })
-  }
-})
+// Match both `/api` (collapsed rewrites) and `/api/*`.
+app.use('/api', withDb)
+app.use('/api/*', withDb)
 
 app.get('/api/health', (c) =>
   c.json({
     ok: state.db !== null,
     kind: state.kind,
     error: state.db ? null : state.lastError,
+    hasDatabaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
   }),
 )
 
