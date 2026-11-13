@@ -5,7 +5,11 @@ import { createApp } from './apps/api/src/app'
 
 // Cookie Secure defaults are decided per-request in session.ts.
 
-const state: { db: Database | null } = { db: null }
+const state: { db: Database | null; kind: 'postgres' | 'pglite' | null; lastError: string | null } = {
+  db: null,
+  kind: null,
+  lastError: null,
+}
 let connecting: Promise<void> | null = null
 
 async function ensureDb(): Promise<void> {
@@ -18,9 +22,13 @@ async function ensureDb(): Promise<void> {
       // Confirm the import tables exist even if a prior publish marked migrations done early.
       await handle.db.execute(sql`select 1 from import_batches limit 1`)
       state.db = handle.db
+      state.kind = handle.kind
+      state.lastError = null
     })()
       .catch((error) => {
         state.db = null
+        state.kind = null
+        state.lastError = error instanceof Error ? error.message.slice(0, 180) : 'unknown error'
         throw error
       })
       .finally(() => {
@@ -69,6 +77,14 @@ app.use('/api/*', async (c, next) => {
       })
   }
 })
+
+app.get('/api/health', (c) =>
+  c.json({
+    ok: state.db !== null,
+    kind: state.kind,
+    error: state.db ? null : state.lastError,
+  }),
+)
 
 app.route('/', createApp(state))
 

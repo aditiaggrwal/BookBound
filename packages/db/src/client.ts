@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { drizzle as drizzlePostgres } from 'drizzle-orm/postgres-js'
 import postgres from 'postgres'
+import { postgresOptions } from './pgOptions.js'
 import { schema } from './schema.js'
 
 export type Database = ReturnType<typeof drizzlePostgres<typeof schema>>
@@ -14,17 +15,6 @@ export type DbHandle = {
 }
 
 const rootDir = join(dirname(fileURLToPath(import.meta.url)), '../../..')
-
-function postgresOptions(url: string) {
-  const local = /localhost|127\.0\.0\.1/.test(url)
-  return {
-    max: 5,
-    idle_timeout: 20,
-    connect_timeout: 15,
-    // Verify the server certificate on hosted Postgres.
-    ssl: local ? false : ({ rejectUnauthorized: true } as const),
-  }
-}
 
 export async function createDb(databaseUrl = process.env.DATABASE_URL): Promise<DbHandle> {
   const url = databaseUrl?.trim() ?? ''

@@ -318,6 +318,9 @@ export async function importRowsForBatch(db: Database, userId: string, batchId: 
   if (!Array.isArray(rows) || rows.length > 200) {
     throw new HttpError('Send at most 200 books at a time.', 400)
   }
+  if (batch.receivedCount + rows.length > batch.totalRows) {
+    throw new HttpError('This import already has all of its rows.', 400)
+  }
   const openLibrary = { down: false }
   const results: ImportRowResult[] = []
   for (const input of rows) {

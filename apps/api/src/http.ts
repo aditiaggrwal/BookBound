@@ -10,13 +10,14 @@ export class HttpError extends Error {
 
 const hits = new Map<string, number[]>()
 
-export function limit(key: string, max: number, windowMs: number): void {
+export function limit(key: string, max: number, windowMs: number, cost = 1): void {
+  const amount = Math.max(1, Math.floor(cost))
   const now = Date.now()
   const recent = (hits.get(key) ?? []).filter((stamp) => now - stamp < windowMs)
-  if (recent.length >= max) {
+  if (recent.length + amount > max) {
     throw new HttpError('Too many requests. Wait a moment and try again.', 429)
   }
-  recent.push(now)
+  for (let i = 0; i < amount; i += 1) recent.push(now)
   hits.set(key, recent)
 }
 

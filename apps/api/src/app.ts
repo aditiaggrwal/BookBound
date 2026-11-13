@@ -33,12 +33,25 @@ export function createApp(state: { db: Database | null }) {
 
   app.onError((error, c) => {
     if (error instanceof HttpError) return c.json({ message: error.message }, error.status as 400)
+    // Preserve Hono middleware responses such as bodyLimit's 413.
+    if (error && typeof error === 'object' && 'getResponse' in error && typeof error.getResponse === 'function') {
+      return (error as { getResponse: () => Response }).getResponse()
+    }
     console.error(error)
     const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : ''
+    const detail = error instanceof Error ? error.message : ''
     if (code === '42P01') {
       return c.json({ message: 'BookBound is preparing its database. Wait a moment and try again.' }, 503)
     }
-    if (code === '57P01' || code === '57P03' || code === '08006' || code === '08001') {
+    if (
+      code === '57P01' ||
+      code === '57P03' ||
+      code === '08006' ||
+      code === '08001' ||
+      /SSL|certificate|ECONNREFUSED|timeout|ENOTFOUND|connect|prepared statement|PgBouncer|not supported by the server/i.test(
+        detail,
+      )
+    ) {
       return c.json({ message: 'BookBound could not reach its database. Try again in a moment.' }, 503)
     }
     return c.json({ message: 'Something went wrong. Try again.' }, 500)
@@ -51,8 +64,6 @@ export function createApp(state: { db: Database | null }) {
       onError: (c) => c.json({ message: 'That upload is too large. Send a smaller batch.' }, 413),
     }),
   )
-
-  app.get('/api/health', (c) => c.json({ ok: state.db !== null }))
 
   app.use('/api/*', async (c, next) => {
     if (c.req.path === '/api/health') return next()
@@ -79,13 +90,13 @@ export function createApp(state: { db: Database | null }) {
 
   app.post('/api/import/batches/:id/rows', async (c) => {
     const ip = clientIp(c)
-    limit(`rows:ip:${ip}`, 120, 60 * 60 * 1000)
-    limit('enrichment:global', 80, 60 * 60 * 1000)
     const user = await getUser(c, db())
-    limit(`rows:${user.id}`, 200, 60 * 60 * 1000)
     const body = await c.req.json().catch(() => null)
     const rows = body && typeof body === 'object' && 'rows' in body && Array.isArray(body.rows) ? body.rows : null
     if (!rows) throw new HttpError('Send the books as a list.', 400)
+    limit(`rows:ip:${ip}`, 2_000, 60 * 60 * 1000, rows.length)
+    limit(`rows:${user.id}`, 2_000, 60 * 60 * 1000, rows.length)
+    limit('enrichment:global', 80, 60 * 60 * 1000, Math.min(rows.length, 80))
     const results = await importRowsForBatch(db(), user.id, c.req.param('id'), rows)
     return c.json({ results })
   })

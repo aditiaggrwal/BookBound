@@ -15,10 +15,14 @@ if (url === '' || files.length === 0) {
   process.exit(0)
 }
 
+const connectionString = process.env.DATABASE_URL_UNPOOLED?.trim() || url
+const local = /localhost|127\.0\.0\.1/.test(connectionString)
+
 // The session lock needs a direct connection: DATABASE_URL may go through a
 // transaction pooler, which would keep the lock after this script exits.
 const client = new pg.Client({
-  connectionString: process.env.DATABASE_URL_UNPOOLED?.trim() || url,
+  connectionString,
+  ssl: local ? false : { rejectUnauthorized: true },
 })
 await client.connect()
 try {

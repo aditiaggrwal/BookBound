@@ -1,15 +1,6 @@
 import postgres from 'postgres'
 import { INIT_SQL } from './initSql.js'
-
-function postgresOptions(url: string) {
-  const local = /localhost|127\.0\.0\.1/.test(url)
-  return {
-    max: 1,
-    idle_timeout: 5,
-    connect_timeout: 15,
-    ssl: local ? false : ({ rejectUnauthorized: true } as const),
-  }
-}
+import { postgresOptions } from './pgOptions.js'
 
 /**
  * Apply the bootstrap schema at runtime. Safe to call on every cold start:
@@ -19,7 +10,7 @@ export async function migrateRuntime(databaseUrl = process.env.DATABASE_URL): Pr
   const url = process.env.DATABASE_URL_UNPOOLED?.trim() || databaseUrl?.trim() || ''
   if (url === '') return
 
-  const sql = postgres(url, postgresOptions(url))
+  const sql = postgres(url, postgresOptions(url, { max: 1, idle_timeout: 5 }))
   try {
     await sql`
       create table if not exists schema_migrations (
