@@ -26,6 +26,7 @@ async function ensureDb(): Promise<void> {
   if (!connecting) {
     connecting = (async () => {
       await migrateRuntime()
+      // Hosted entry must use createDb (Postgres only) so PGlite stays out of the bundle.
       const handle = await createDb()
       await handle.db.execute(sql`select 1`)
       // Confirm the import tables exist even if a prior publish marked migrations done early.

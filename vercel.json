@@ -5,14 +5,16 @@
   "outputDirectory": "public",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "{migrations/**,packages/db/sql/**}",
-      "maxDuration": 60
+      "includeFiles": "{migrations/**,packages/db/src/**,packages/shared/src/**,apps/api/src/**}",
+      "excludeFiles": "{**/node_modules/@electric-sql/pglite/**,**/*.test.ts,**/apps/web/**,**/apps/worker/**}",
+      "maxDuration": 60,
+      "memory": 1024
     }
   },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api"
+      "destination": "/api?__bb_path=$1"
     },
     {
       "source": "/((?!api/).*)",

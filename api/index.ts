@@ -1,16 +1,48 @@
-import app from '../server'
-
 export const config = {
   runtime: 'nodejs',
   maxDuration: 60,
 }
 
+type App = { fetch: (request: Request) => Response | Promise<Response> }
+
+let appPromise: Promise<App> | null = null
+let loadError: string | null = null
+
+function sanitize(error: unknown): string {
+  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  return raw
+    .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[db-url]')
+    .replace(/password=[^\s&]+/gi, 'password=[redacted]')
+    .slice(0, 220)
+}
+
+function loadApp(): Promise<App> {
+  if (!appPromise) {
+    appPromise = import('../server')
+      .then((mod) => mod.default as App)
+      .catch((error) => {
+        loadError = sanitize(error)
+        appPromise = null
+        throw error
+      })
+  }
+  return appPromise
+}
+
 /**
- * Host rewrites `/api/*` onto this function. Some edge setups collapse the
- * path to `/api`; restore the browser path so Hono route matching still works.
+ * Host rewrites `/api/:path*` to `/api?__bb_path=:path*`. Rebuild the original
+ * path so Hono can match `/api/library/summary` and friends.
  */
 function restorePath(request: Request): Request {
   const url = new URL(request.url)
+  const fromQuery = url.searchParams.get('__bb_path')
+  if (fromQuery) {
+    const next = new URL(request.url)
+    next.pathname = `/api/${fromQuery.replace(/^\/+/, '')}`
+    next.searchParams.delete('__bb_path')
+    return new Request(next.toString(), request)
+  }
+
   if (url.pathname !== '/api' && url.pathname !== '/api/') return request
 
   const candidates = [
@@ -18,7 +50,6 @@ function restorePath(request: Request): Request {
     request.headers.get('x-invoke-path'),
     request.headers.get('x-vercel-forwarded-path'),
     request.headers.get('x-matched-path'),
-    request.headers.get('x-rewrite-url'),
     request.headers.get('x-original-url'),
     request.headers.get('x-forwarded-path'),
   ]
@@ -33,8 +64,7 @@ function restorePath(request: Request): Request {
     }
     if (!path.startsWith('/')) path = `/${path}`
     if (path === '/api' || path === '/api/') continue
-    // Some hosts forward the suffix without the /api prefix.
-    if (!path.startsWith('/api/') && path.startsWith('/import/')) path = `/api${path}`
+    if (!path.startsWith('/api/')) path = `/api${path.startsWith('/') ? path : `/${path}`}`
     const next = new URL(request.url)
     next.pathname = path
     return new Request(next.toString(), request)
@@ -42,23 +72,38 @@ function restorePath(request: Request): Request {
   return request
 }
 
-function sanitize(error: unknown): string {
-  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
-  return raw
-    .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[db-url]')
-    .replace(/password=[^\s&]+/gi, 'password=[redacted]')
-    .slice(0, 180)
+function pathOf(request: Request): string {
+  try {
+    return new URL(request.url).pathname
+  } catch {
+    return ''
+  }
 }
 
 async function handler(request: Request): Promise<Response> {
+  const restored = restorePath(request)
+  const path = pathOf(restored)
+
+  // Lightweight probe that does not load the DB stack.
+  if (path === '/api/ping') {
+    return Response.json({
+      ok: true,
+      path,
+      hasDatabaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
+      loadError,
+    })
+  }
+
   try {
-    return await app.fetch(restorePath(request))
+    const app = await loadApp()
+    return await app.fetch(restored)
   } catch (error) {
     console.error('API handler crash', error)
     return Response.json(
       {
         message: 'Something went wrong. Try again.',
-        detail: sanitize(error),
+        detail: loadError ?? sanitize(error),
+        path,
       },
       { status: 500 },
     )

@@ -22,6 +22,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
     }
   }
   if (!response.ok) {
+    const snippet = !looksJson ? trimmed.replace(/\s+/g, ' ').slice(0, 140) : ''
     const base =
       body.message ??
       (body.error === 'sign_in_required'
@@ -30,7 +31,9 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
           ? 'BookBound is still starting. Wait a moment and try again.'
           : response.status === 429
             ? 'Too many requests. Wait a moment and try again.'
-            : `Something went wrong (${response.status}). Try again.`)
+            : snippet
+              ? `Something went wrong (${response.status}). ${snippet}`
+              : `Something went wrong (${response.status}). Try again.`)
     const message =
       body.detail && !base.includes(body.detail) ? `${base} (${body.detail})` : base
     throw new ApiError(message)

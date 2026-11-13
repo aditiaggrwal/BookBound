@@ -6,6 +6,7 @@ import { serveStatic } from '@hono/node-server/serve-static'
 import { sql } from 'drizzle-orm'
 import { Hono } from 'hono'
 import { createDb, type Database } from '@bookbound/db'
+import { createLocalDb } from '@bookbound/db/local'
 import { loadEnv } from '@bookbound/shared/env'
 import { startEnrichmentLoop } from '@bookbound/worker/loop'
 import { createApp } from './app'
@@ -45,7 +46,7 @@ serve({ fetch: app.fetch, port }, () => {
 async function connect() {
   for (;;) {
     try {
-      const handle = await createDb()
+      const handle = process.env.DATABASE_URL?.trim() ? await createDb() : await createLocalDb()
       await handle.db.execute(sql`select 1`)
       state.db = handle.db
       console.log(`API connected to ${handle.kind === 'pglite' ? 'local PGlite' : 'Postgres'}`)
