@@ -6,22 +6,13 @@ export const config = {
 type App = { fetch: (request: Request) => Response | Promise<Response> }
 
 let appPromise: Promise<App> | null = null
-let loadError: string | null = null
-
-function sanitize(error: unknown): string {
-  const raw = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
-  return raw
-    .replace(/postgres(?:ql)?:\/\/[^\s]+/gi, '[db-url]')
-    .replace(/password=[^\s&]+/gi, 'password=[redacted]')
-    .slice(0, 220)
-}
 
 function loadApp(): Promise<App> {
   if (!appPromise) {
-    appPromise = import('../server')
-      .then((mod) => mod.default as App)
+    // Built by `node scripts/bundle-api.mjs` during `pnpm build`.
+    appPromise = import('./app.bundle.mjs')
+      .then((mod) => (mod.default ?? mod) as App)
       .catch((error) => {
-        loadError = sanitize(error)
         appPromise = null
         throw error
       })
@@ -72,29 +63,13 @@ function restorePath(request: Request): Request {
   return request
 }
 
-function pathOf(request: Request): string {
-  try {
-    return new URL(request.url).pathname
-  } catch {
-    return ''
-  }
-}
-
 async function handler(request: Request): Promise<Response> {
   const restored = restorePath(request)
-  const path = pathOf(restored)
-
-  // Lightweight probe that does not load the DB stack.
-  if (path === '/api/ping') {
-    return Response.json({
-      ok: true,
-      path,
-      hasDatabaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
-      loadError,
-    })
-  }
-
   try {
+    const path = new URL(restored.url).pathname
+    if (path === '/api/ping') {
+      return Response.json({ ok: true })
+    }
     const app = await loadApp()
     return await app.fetch(restored)
   } catch (error) {

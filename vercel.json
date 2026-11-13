@@ -5,10 +5,8 @@
   "outputDirectory": "public",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "{migrations/**,packages/db/src/**,packages/shared/src/**,apps/api/src/**}",
-      "excludeFiles": "{**/node_modules/@electric-sql/pglite/**,**/*.test.ts,**/apps/web/**,**/apps/worker/**}",
-      "maxDuration": 60,
-      "memory": 1024
+      "includeFiles": "{api/app.bundle.mjs,migrations/**,data/**}",
+      "maxDuration": 60
     }
   },
   "rewrites": [

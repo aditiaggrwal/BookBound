@@ -10,9 +10,12 @@ import { upsertBook } from '../import/service'
 export type SeedBook = { isbn13: string; title: string; author: string }
 
 export function readSeed(): SeedBook[] {
-  const path = fileURLToPath(new URL('../../../../data/review-isbns.json', import.meta.url))
-  const parsed = JSON.parse(readFileSync(path, 'utf8')) as SeedBook[]
-  return parsed
+  try {
+    const path = fileURLToPath(new URL('../../../../data/review-isbns.json', import.meta.url))
+    return JSON.parse(readFileSync(path, 'utf8')) as SeedBook[]
+  } catch {
+    return []
+  }
 }
 
 export async function librarySummary(db: Database, userId: string) {

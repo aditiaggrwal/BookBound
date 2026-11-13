@@ -9,3 +9,4 @@ coverage
 *.tsbuildinfo
 .vite
 .vercel
+api/app.bundle.mjs

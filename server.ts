@@ -82,14 +82,7 @@ const withDb: MiddlewareHandler = async (c, next) => {
 app.use('/api', withDb)
 app.use('/api/*', withDb)
 
-app.get('/api/health', (c) =>
-  c.json({
-    ok: state.db !== null,
-    kind: state.kind,
-    error: state.db ? null : state.lastError,
-    hasDatabaseUrl: Boolean(process.env.DATABASE_URL?.trim()),
-  }),
-)
+app.get('/api/health', (c) => c.json({ ok: state.db !== null }))
 
 app.route('/', createApp(state))
 
