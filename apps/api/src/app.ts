@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import type { Database } from '@bookbound/db'
 import { HttpError, limit } from './http'
 import {
@@ -12,26 +13,57 @@ import {
   searchCatalog,
 } from './import/service'
 import type { ReviewAction } from './import/match'
-import { getUser } from './session'
+import { clientIp, getUser } from './session'
 import { readMap } from './atlas/service'
 import { judgeTags, librarySummary, listLibrary, loadReviewSeed, retryTagging, reviewSet, setRating } from './review/service'
+
+function requireReviewAdmin(c: { req: { header: (name: string) => string | undefined } }) {
+  const expected = process.env.REVIEW_ADMIN_TOKEN?.trim()
+  if (!expected) throw new HttpError('Tag review is not available.', 403)
+  const auth = c.req.header('authorization')?.trim() ?? ''
+  const bearer = auth.toLowerCase().startsWith('bearer ') ? auth.slice(7).trim() : ''
+  const header = c.req.header('x-review-admin')?.trim() ?? ''
+  if (bearer !== expected && header !== expected) {
+    throw new HttpError('Tag review is not available.', 403)
+  }
+}
 
 export function createApp(state: { db: Database | null }) {
   const app = new Hono()
 
   app.onError((error, c) => {
     if (error instanceof HttpError) return c.json({ message: error.message }, error.status as 400)
+    // Preserve Hono middleware responses such as bodyLimit's 413.
+    if (error && typeof error === 'object' && 'getResponse' in error && typeof error.getResponse === 'function') {
+      return (error as { getResponse: () => Response }).getResponse()
+    }
     console.error(error)
+    const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : ''
+    const detail = error instanceof Error ? error.message : ''
+    if (code === '42P01') {
+      return c.json({ message: 'BookBound is preparing its database. Wait a moment and try again.' }, 503)
+    }
+    if (
+      code === '57P01' ||
+      code === '57P03' ||
+      code === '08006' ||
+      code === '08001' ||
+      /SSL|certificate|ECONNREFUSED|timeout|ENOTFOUND|connect|prepared statement|PgBouncer|not supported by the server/i.test(
+        detail,
+      )
+    ) {
+      return c.json({ message: 'BookBound could not reach its database. Try again in a moment.' }, 503)
+    }
     return c.json({ message: 'Something went wrong. Try again.' }, 500)
   })
 
-  app.use('*', async (c, next) => {
-    const length = Number(c.req.header('content-length') ?? 0)
-    if (length > 2_000_000) return c.json({ message: 'That upload is too large. Send a smaller batch.' }, 413)
-    await next()
-  })
-
-  app.get('/api/health', (c) => c.json({ ok: state.db !== null }))
+  app.use(
+    '*',
+    bodyLimit({
+      maxSize: 2_000_000,
+      onError: (c) => c.json({ message: 'That upload is too large. Send a smaller batch.' }, 413),
+    }),
+  )
 
   app.use('/api/*', async (c, next) => {
     if (c.req.path === '/api/health') return next()
@@ -45,6 +77,8 @@ export function createApp(state: { db: Database | null }) {
   }
 
   app.post('/api/import/batches', async (c) => {
+    const ip = clientIp(c)
+    limit(`import:ip:${ip}`, 20, 60 * 60 * 1000)
     const user = await getUser(c, db())
     limit(`import:${user.id}`, 30, 60 * 60 * 1000)
     const body = await c.req.json().catch(() => null)
@@ -55,11 +89,14 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.post('/api/import/batches/:id/rows', async (c) => {
+    const ip = clientIp(c)
     const user = await getUser(c, db())
-    limit(`rows:${user.id}`, 400, 60 * 60 * 1000)
     const body = await c.req.json().catch(() => null)
     const rows = body && typeof body === 'object' && 'rows' in body && Array.isArray(body.rows) ? body.rows : null
     if (!rows) throw new HttpError('Send the books as a list.', 400)
+    limit(`rows:ip:${ip}`, 2_000, 60 * 60 * 1000, rows.length)
+    limit(`rows:${user.id}`, 2_000, 60 * 60 * 1000, rows.length)
+    limit('enrichment:global', 80, 60 * 60 * 1000, Math.min(rows.length, 80))
     const results = await importRowsForBatch(db(), user.id, c.req.param('id'), rows)
     return c.json({ results })
   })
@@ -80,6 +117,9 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.post('/api/import/rows/:id/:action', async (c) => {
+    const ip = clientIp(c)
+    limit(`resolve:ip:${ip}`, 120, 60 * 60 * 1000)
+    limit('enrichment:global', 80, 60 * 60 * 1000)
     const user = await getUser(c, db())
     const action = c.req.param('action')
     if (action !== 'accept' && action !== 'skip' && action !== 'choose') {
@@ -92,6 +132,8 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.get('/api/books/search', async (c) => {
+    const ip = clientIp(c)
+    limit(`search:ip:${ip}`, 40, 60 * 1000)
     const user = await getUser(c, db())
     limit(`search:${user.id}`, 40, 60 * 1000)
     const query = c.req.query('q') ?? ''
@@ -111,7 +153,11 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.post('/api/library/favorites', async (c) => {
+    const ip = clientIp(c)
+    limit(`favorites:ip:${ip}`, 30, 60 * 60 * 1000)
+    limit('enrichment:global', 80, 60 * 60 * 1000)
     const user = await getUser(c, db())
+    limit(`favorites:${user.id}`, 30, 60 * 60 * 1000)
     const body = await c.req.json().catch(() => null)
     if (!body || typeof body !== 'object' || !('candidate' in body)) {
       throw new HttpError('Choose a book from the search results.', 400)
@@ -132,13 +178,19 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.post('/api/library/:bookId/retry', async (c) => {
+    const ip = clientIp(c)
+    limit(`retry:ip:${ip}`, 10, 60 * 60 * 1000)
+    limit('enrichment:global', 80, 60 * 60 * 1000)
     const user = await getUser(c, db())
+    limit(`retry:${user.id}`, 10, 60 * 60 * 1000)
     await retryTagging(db(), user.id, c.req.param('bookId'))
     return c.json({ ok: true })
   })
 
   app.post('/api/review/seed', async (c) => {
+    requireReviewAdmin(c)
     await getUser(c, db())
+    limit('review:seed', 5, 60 * 60 * 1000)
     return c.json(await loadReviewSeed(db()))
   })
 
@@ -148,11 +200,13 @@ export function createApp(state: { db: Database | null }) {
   })
 
   app.get('/api/review/tags', async (c) => {
+    requireReviewAdmin(c)
     await getUser(c, db())
     return c.json(await reviewSet(db()))
   })
 
   app.post('/api/review/tags', async (c) => {
+    requireReviewAdmin(c)
     const user = await getUser(c, db())
     const body = await c.req.json().catch(() => null)
     if (!body || typeof body !== 'object' || typeof body.bookId !== 'string' || typeof body.accurate !== 'boolean') {

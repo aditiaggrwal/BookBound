@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "build": "vite build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
+
   "dependencies": {
     "@bookbound/shared": "workspace:*",
     "@fontsource/dm-sans": "^5.3.0",

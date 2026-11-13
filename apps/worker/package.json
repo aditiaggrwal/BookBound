@@ -2,6 +2,9 @@
   "name": "@bookbound/worker",
   "private": true,
   "type": "module",
+  "exports": {
+    "./loop": "./src/loop.ts"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "test": "vitest run",

@@ -1,3 +1,5 @@
+import { cleanIsbn } from './text'
+
 export const SHELVES = ['read', 'to-read', 'reading', 'did-not-finish'] as const
 export type Shelf = (typeof SHELVES)[number]
 
@@ -142,23 +144,32 @@ export function coerceCandidate(input: unknown): BookCandidate | null {
     ? row.authors.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 8)
     : []
   const isbns = Array.isArray(row.isbns)
-    ? row.isbns.filter((item): item is string => typeof item === 'string').slice(0, 40)
+    ? row.isbns
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => cleanIsbn(item))
+        .filter((item): item is string => Boolean(item))
+        .slice(0, 40)
     : []
   const source = row.source
   const allowed = new Set(['open-library', 'google-books', 'local', 'seed'])
+  const isbn13 = typeof row.isbn13 === 'string' ? cleanIsbn(row.isbn13) : null
+  const isbn10 = typeof row.isbn10 === 'string' ? cleanIsbn(row.isbn10) : null
   return {
-    bookId: typeof row.bookId === 'string' ? row.bookId : null,
+    bookId: typeof row.bookId === 'string' && /^[0-9a-f-]{36}$/i.test(row.bookId) ? row.bookId : null,
     title,
     authors,
-    isbn13: typeof row.isbn13 === 'string' ? row.isbn13 : null,
-    isbn10: typeof row.isbn10 === 'string' ? row.isbn10 : null,
+    isbn13: isbn13 && isbn13.length === 13 ? isbn13 : null,
+    isbn10: isbn10 && isbn10.length === 10 ? isbn10 : null,
     isbns,
     coverUrl: typeof row.coverUrl === 'string' ? row.coverUrl.slice(0, 500) : null,
     year: numberOrNull(row.year, 0, 3000),
     subjects: Array.isArray(row.subjects)
       ? row.subjects.filter((item): item is string => typeof item === 'string').slice(0, 20)
       : [],
-    openLibraryKey: typeof row.openLibraryKey === 'string' ? row.openLibraryKey.slice(0, 200) : null,
+    openLibraryKey:
+      typeof row.openLibraryKey === 'string' && /^\/?(works|books)\/[A-Za-z0-9_:-]+$/.test(row.openLibraryKey)
+        ? row.openLibraryKey.slice(0, 200)
+        : null,
     description: typeof row.description === 'string' ? row.description.slice(0, 20000) : null,
     language: typeof row.language === 'string' ? row.language.slice(0, 16) : null,
     source: typeof source === 'string' && allowed.has(source) ? (source as BookCandidate['source']) : 'open-library',
